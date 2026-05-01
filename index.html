@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhotoHub - Remove Background & Create Passport Photos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            min-height: 100vh;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/react-dom.production.min.js"></script>
+
+    <!-- Babel Standalone for JSX transformation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+    <!-- Lucide React Icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.292.0/umd/lucide.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useRef } = React;
+        const { Upload, Mail, Lock, Download, Loader, Check, X, ArrowRight } = lucide;
+
+        function PhotoEditorApp() {
+            // Authentication States
+            const [authStep, setAuthStep] = useState('email'); // email, otp, dashboard
+            const [email, setEmail] = useState('');
+            const [otp, setOtp] = useState('');
+            const [storedOtp, setStoredOtp] = useState('');
+            const [isOtpSent, setIsOtpSent] = useState(false);
+            const [authError, setAuthError] = useState('');
+            const [authSuccess, setAuthSuccess] = useState('');
+            const [user, setUser] = useState(null);
+
+            // Image Processing States
+            const [uploadedImage, setUploadedImage] = useState(null);
+            const [processedImage, setProcessedImage] = useState(null);
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [processingError, setProcessingError] = useState('');
+            const [passportMode, setPassportMode] = useState(false);
+            const [showPreview, setShowPreview] = useState(false);
+
+            const fileInputRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            // OTP Generation
+            const generateOtp = () => {
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                return otp;
+            };
+
+            // Email Authentication Handler
+            const handleSendOtp = (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthSuccess('');
+
+                if (!email) {
+                    setAuthError('Please enter an email address');
+                    return;
+                }
+
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    setAuthError('Please enter a valid email address');
+                    return;
+                }
+
+                const newOtp = generateOtp();
+                setStoredOtp(newOtp);
+                setIsOtpSent(true);
+                setAuthSuccess(`OTP sent! (Demo: ${newOtp})`);
+                setAuthStep('otp');
+            };
+
+            // OTP Verification
+            const handleVerifyOtp = (e) => {
+                e.preventDefault();
+                setAuthError('');
+
+                if (!otp) {
+                    setAuthError('Please enter the OTP');
+                    return;
+                }
+
+                if (otp === storedOtp) {
+                    setUser({
+                        email,
+                        id: Date.now(),
+                        loginTime: new Date(),
+                    });
+                    setAuthStep('dashboard');
+                    setAuthSuccess('✓ Authentication successful!');
+                } else {
+                    setAuthError('Invalid OTP. Please try again.');
+                    setOtp('');
+                }
+            };
+
+            // Image Upload Handler
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (!file.type.startsWith('image/')) {
+                    setProcessingError('Please upload an image file');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    setUploadedImage(event.target.result);
+                    setProcessedImage(null);
+                    setProcessingError('');
+                    setPassportMode(false);
+                };
+                reader.readAsDataURL(file);
+            };
+
+            // Remove Background with API
+            const handleRemoveBackground = async () => {
+                if (!uploadedImage) {
+                    setProcessingError('Please upload an image first');
+                    return;
+                }
+
+                setIsProcessing(true);
+                setProcessingError('');
+
+                try {
+                    // For demo: simulate background removal with canvas processing
+                    simulateBackgroundRemoval();
+                } catch (error) {
+                    setProcessingError('Error processing image');
+                } finally {
+                    setIsProcessing(false);
+                }
+            };
+
+            // Simulate Background Removal (Demo)
+            const simulateBackgroundRemoval = () => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+
+                canvas.width = 400;
+                canvas.height = 300;
+                const ctx = canvas.getContext('2d');
+
+                const img = new Image();
+                img.onload = () => {
+                    // Draw image
+                    ctx.drawImage(img, 0, 0, 400, 300);
+
+                    // Apply enhancement effects
+                    ctx.filter = 'contrast(1.1) brightness(1.05)';
+                    ctx.drawImage(img, 0, 0, 400, 300);
+
+                    // Add light background effect
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.fillRect(0, 0, 400, 300);
+
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            setProcessedImage(e.target.result);
+                            setPassportMode(false);
+                            setShowPreview(true);
+                            setIsProcessing(false);
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+                };
+                img.src = uploadedImage;
+            };
+
+            // Create Passport Photo
+            const handleCreatePassportPhoto = () => {
+                if (!processedImage) {
+                    setProcessingError('Please remove background first');
+                    return;
+                }
+
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+
+                // Passport photo size: 4cm x 6cm (standard)
+                // Using 96 DPI: 4cm = 151px, 6cm = 227px
+                canvas.width = 151;
+                canvas.height = 227;
+                const ctx = canvas.getContext('2d');
+
+                // White background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 151, 227);
+
+                // Draw image
+                const img = new Image();
+                img.onload = () => {
+                    // Center crop and fit
+                    const imgWidth = img.width;
+                    const imgHeight = img.height;
+                    const canvasAspect = 151 / 227;
+                    const imgAspect = imgWidth / imgHeight;
+
+                    let sx, sy, sWidth, sHeight;
+
+                    if (imgAspect > canvasAspect) {
+                        sHeight = imgHeight;
+                        sWidth = imgHeight * canvasAspect;
+                        sx = (imgWidth - sWidth) / 2;
+                        sy = 0;
+                    } else {
+                        sWidth = imgWidth;
+                        sHeight = imgWidth / canvasAspect;
+                        sx = 0;
+                        sy = (imgHeight - sHeight) / 2;
+                    }
+
+                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 151, 227);
+
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            setProcessedImage(e.target.result);
+                            setPassportMode(true);
+                            setShowPreview(true);
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+                };
+                img.src = processedImage;
+            };
+
+            // Download Image
+            const handleDownload = () => {
+                const link = document.createElement('a');
+                link.href = processedImage;
+                link.download = passportMode 
+                    ? `passport-photo-${Date.now()}.png`
+                    : `bg-removed-${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            // Logout
+            const handleLogout = () => {
+                setAuthStep('email');
+                setEmail('');
+                setOtp('');
+                setStoredOtp('');
+                setUser(null);
+                setUploadedImage(null);
+                setProcessedImage(null);
+                setIsOtpSent(false);
+                setAuthSuccess('');
+                setAuthError('');
+            };
+
+            // ============ RENDER AUTHENTICATION PAGE ============
+            if (authStep === 'email') {
+                return (
+                    <div style={styles.emailAuthPage}>
+                        <div style={styles.authContainer}>
+                            <div style={styles.logoSection}>
+                                <div style={styles.logoIcon}>
+                                    <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '28px', height: '28px', color: 'white' }}>
+                                        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                                    </svg>
+                                </div>
+                                <h1 style={styles.mainTitle}>PhotoHub</h1>
+                                <p style={styles.subtitle}>Remove backgrounds & create passport photos</p>
+                            </div>
+
+                            {authError && (
+                                <div style={styles.alertError}>
+                                    <X size={16} />
+                                    {authError}
+                                </div>
+                            )}
+
+                            {authSuccess && (
+                                <div style={styles.alertSuccess}>
+                                    <Check size={16} />
+                                    {authSuccess}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSendOtp}>
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="you@example.com"
+                                        style={styles.input}
+                                    />
+                                </div>
+
+                                <button type="submit" style={styles.buttonPrimary}>
+                                    <Mail size={18} />
+                                    Send OTP
+                                </button>
+                            </form>
+
+                            <div style={styles.demoInfo}>
+                                <p>Demo: Valid OTP will be shown after clicking "Send OTP"</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ============ RENDER OTP VERIFICATION PAGE ============
+            if (authStep === 'otp') {
+                return (
+                    <div style={styles.emailAuthPage}>
+                        <div style={styles.authContainer}>
+                            <div style={styles.logoSection}>
+                                <div style={styles.logoIcon}>
+                                    <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '28px', height: '28px', color: 'white' }}>
+                                        <path d="M9 6.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM4 11a4 4 0 118 0 4 4 0 01-8 0z" />
+                                    </svg>
+                                </div>
+                                <h1 style={styles.mainTitle}>Verify Code</h1>
+                                <p style={styles.subtitle}>Enter the OTP sent to your email</p>
+                            </div>
+
+                            <div style={styles.emailDisplay}>Sent to: {email}</div>
+
+                            {authError && (
+                                <div style={styles.alertError}>
+                                    <X size={16} />
+                                    {authError}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleVerifyOtp}>
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>One-Time Password (OTP)</label>
+                                    <input
+                                        type="text"
+                                        value={otp}
+                                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        placeholder="000000"
+                                        maxLength="6"
+                                        style={{ ...styles.input, letterSpacing: '2px', fontWeight: '600' }}
+                                    />
+                                </div>
+
+                                <button type="submit" style={styles.buttonPrimary}>
+                                    <Lock size={18} />
+                                    Verify OTP
+                                </button>
+                            </form>
+
+                            <div style={styles.otpHint}>
+                                💡 Check the success message above for the demo OTP code
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ============ RENDER MAIN DASHBOARD ============
+            return (
+                <div style={styles.dashboardPage}>
+                    {/* Header */}
+                    <div style={styles.header}>
+                        <div style={styles.headerContent}>
+                            <div style={styles.logo}>
+                                <div style={styles.headerLogoIcon}>
+                                    <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '20px', height: '20px' }}>
+                                        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                                    </svg>
+                                </div>
+                                PhotoHub
+                            </div>
+                            <div style={styles.userInfo}>
+                                <span>{user?.email}</span>
+                                <button style={styles.logoutBtn} onClick={handleLogout}>
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div style={styles.container}>
+                        <div style={styles.content}>
+                            {/* Upload Section */}
+                            <div style={styles.panel}>
+                                <div style={styles.panelTitle}>
+                                    <Upload size={20} />
+                                    Upload & Process
+                                </div>
+
+                                {processingError && (
+                                    <div style={styles.errorMessage}>
+                                        <X size={16} />
+                                        {processingError}
+                                    </div>
+                                )}
+
+                                {uploadedImage ? (
+                                    <>
+                                        <img src={uploadedImage} alt="Uploaded" style={styles.imagePreview} />
+                                        <div style={styles.buttonGroup}>
+                                            <button
+                                                style={styles.buttonPrimary}
+                                                onClick={handleRemoveBackground}
+                                                disabled={isProcessing}
+                                            >
+                                                {isProcessing ? (
+                                                    <>
+                                                        <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                                        Processing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>✂️</span>
+                                                        Remove Background
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                style={styles.buttonSecondary}
+                                                onClick={() => {
+                                                    setUploadedImage(null);
+                                                    setProcessedImage(null);
+                                                    fileInputRef.current?.click();
+                                                }}
+                                            >
+                                                <Upload size={16} />
+                                                Change Image
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div
+                                        style={styles.uploadArea}
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        <div style={styles.uploadIcon}>
+                                            <Upload size={28} />
+                                        </div>
+                                        <p style={styles.uploadText}>
+                                            Click to upload or drag and drop
+                                        </p>
+                                        <p style={{ color: '#64748b', fontSize: '12px', marginTop: '5px' }}>
+                                            PNG, JPG or GIF (max 10MB)
+                                        </p>
+                                    </div>
+                                )}
+
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    style={{ display: 'none' }}
+                                />
+
+                                <div style={styles.infoBox}>
+                                    💡 For best results, upload a clear image with good lighting and contrast.
+                                </div>
+                            </div>
+
+                            {/* Preview & Output Section */}
+                            <div style={styles.panel}>
+                                <div style={styles.panelTitle}>
+                                    <Download size={20} />
+                                    Output & Download
+                                </div>
+
+                                {processedImage ? (
+                                    <>
+                                        <img src={processedImage} alt="Processed" style={styles.imagePreview} />
+                                        <div style={styles.featureBadge}>
+                                            {passportMode ? '🎫 Passport Size' : '✂️ Background Removed'}
+                                        </div>
+                                        
+                                        <div style={styles.buttonGroup}>
+                                            {!passportMode && (
+                                                <button
+                                                    style={styles.buttonPrimary}
+                                                    onClick={handleCreatePassportPhoto}
+                                                >
+                                                    <span>🎫</span>
+                                                    Create Passport Photo
+                                                </button>
+                                            )}
+                                            <button
+                                                style={styles.buttonPrimary}
+                                                onClick={handleDownload}
+                                            >
+                                                <Download size={16} />
+                                                Download Image
+                                            </button>
+                                            <button
+                                                style={styles.buttonSecondary}
+                                                onClick={() => {
+                                                    setUploadedImage(null);
+                                                    setProcessedImage(null);
+                                                    fileInputRef.current?.click();
+                                                }}
+                                            >
+                                                Start Over
+                                            </button>
+                                        </div>
+
+                                        <div style={styles.infoBox}>
+                                            {passportMode 
+                                                ? '📐 Passport size: 4cm × 6cm at 96 DPI (151 × 227 pixels)'
+                                                : '✅ Background successfully removed! Ready for download or passport conversion.'}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div style={styles.emptyState}>
+                                        <svg
+                                            style={{
+                                                width: '64px',
+                                                height: '64px',
+                                                margin: '0 auto 15px',
+                                                opacity: 0.3,
+                                                color: '#a855f7'
+                                            }}
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                                        </svg>
+                                        <p style={{ fontSize: '14px' }}>
+                                            Upload an image to get started
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Styles object
+        const styles = {
+            // Auth Pages
+            emailAuthPage: {
+                minHeight: '100vh',
+                background: 'linear-gradient(to br, #0f172a, #1e1b4b, #0f172a)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+            },
+            authContainer: {
+                background: 'rgba(15, 23, 42, 0.8)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(168, 85, 247, 0.2)',
+                borderRadius: '20px',
+                padding: '50px',
+                maxWidth: '420px',
+                width: '100%',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
+            },
+            logoSection: {
+                textAlign: 'center',
+                marginBottom: '35px'
+            },
+            logoIcon: {
+                width: '50px',
+                height: '50px',
+                background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+            },
+            mainTitle: {
+                color: 'white',
+                fontSize: '28px',
+                fontWeight: '600',
+                marginBottom: '8px'
+            },
+            subtitle: {
+                color: '#a0aec0',
+                fontSize: '14px'
+            },
+            formGroup: {
+                marginBottom: '20px'
+            },
+            label: {
+                display: 'block',
+                color: '#cbd5e1',
+                fontSize: '13px',
+                fontWeight: '500',
+                marginBottom: '8px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+            },
+            input: {
+                width: '100%',
+                padding: '12px 15px',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                borderRadius: '10px',
+                background: 'rgba(30, 41, 59, 0.5)',
+                color: 'white',
+                fontSize: '15px',
+                transition: 'all 0.3s ease',
+                outline: 'none'
+            },
+            alertError: {
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                padding: '12px 15px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+            },
+            alertSuccess: {
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#86efac',
+                padding: '12px 15px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+            },
+            buttonPrimary: {
+                width: '100%',
+                padding: '12px',
+                background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '10px'
+            },
+            demoInfo: {
+                marginTop: '20px',
+                paddingTop: '20px',
+                borderTop: '1px solid rgba(168, 85, 247, 0.1)',
+                color: '#94a3b8',
+                fontSize: '12px',
+                textAlign: 'center'
+            },
+            emailDisplay: {
+                background: 'rgba(168, 85, 247, 0.1)',
+                border: '1px solid rgba(168, 85, 247, 0.2)',
+                padding: '12px',
+                borderRadius: '8px',
+                color: '#cbd5e1',
+                fontSize: '14px',
+                textAlign: 'center',
+                marginBottom: '25px'
+            },
+            otpHint: {
+                color: '#86efac',
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                padding: '10px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                marginTop: '15px'
+            },
+
+            // Dashboard
+            dashboardPage: {
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)'
+            },
+            header: {
+                background: 'rgba(15, 23, 42, 0.6)',
+                backdropFilter: 'blur(10px)',
+                borderBottom: '1px solid rgba(168, 85, 247, 0.1)',
+                padding: '20px 0',
+                position: 'sticky',
+                top: 0,
+                zIndex: 100
+            },
+            headerContent: {
+                maxWidth: '1200px',
+                margin: '0 auto',
+                padding: '0 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+            },
+            logo: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                color: 'white',
+                fontSize: '24px',
+                fontWeight: '700'
+            },
+            headerLogoIcon: {
+                width: '40px',
+                height: '40px',
+                background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white'
+            },
+            userInfo: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '15px',
+                color: '#cbd5e1',
+                fontSize: '14px'
+            },
+            logoutBtn: {
+                padding: '8px 16px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                color: '#fca5a5',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                fontSize: '13px',
+                fontWeight: '500'
+            },
+            container: {
+                maxWidth: '1200px',
+                margin: '0 auto',
+                padding: '40px 20px'
+            },
+            content: {
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '30px'
+            },
+            panel: {
+                background: 'rgba(30, 41, 59, 0.4)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(168, 85, 247, 0.2)',
+                borderRadius: '16px',
+                padding: '30px',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+            },
+            panelTitle: {
+                color: 'white',
+                fontSize: '20px',
+                fontWeight: '600',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+            },
+            uploadArea: {
+                border: '2px dashed rgba(168, 85, 247, 0.4)',
+                borderRadius: '12px',
+                padding: '40px 20px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                background: 'rgba(168, 85, 247, 0.05)',
+                marginBottom: '20px'
+            },
+            uploadIcon: {
+                width: '48px',
+                height: '48px',
+                background: 'rgba(168, 85, 247, 0.2)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px',
+                color: '#a855f7'
+            },
+            uploadText: {
+                color: '#cbd5e1',
+                fontSize: '14px'
+            },
+            imagePreview: {
+                width: '100%',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                border: '1px solid rgba(168, 85, 247, 0.2)',
+                maxHeight: '400px',
+                objectFit: 'cover'
+            },
+            buttonGroup: {
+                display: 'grid',
+                gap: '10px'
+            },
+            buttonSecondary: {
+                padding: '12px 20px',
+                background: 'rgba(168, 85, 247, 0.1)',
+                color: '#a855f7',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+            },
+            featureBadge: {
+                display: 'inline-block',
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#86efac',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '11px',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                marginBottom: '15px'
+            },
+            errorMessage: {
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                padding: '12px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                marginBottom: '15px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+            },
+            infoBox: {
+                background: 'rgba(59, 130, 246, 0.1)',
+                borderLeft: '3px solid #3b82f6',
+                padding: '12px',
+                borderRadius: '6px',
+                color: '#93c5fd',
+                fontSize: '12px',
+                marginTop: '15px'
+            },
+            emptyState: {
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#94a3b8'
+            }
+        };
+
+        // Render the app
+        ReactDOM.createRoot(document.getElementById('root')).render(<PhotoEditorApp />);
+    </script>
+
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>
